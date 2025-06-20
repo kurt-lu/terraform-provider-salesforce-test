@@ -148,6 +148,7 @@ func (p *provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"salesforce_profile":   profileType{},
 		"salesforce_user":      userType{},
 		"salesforce_user_role": userRoleType{},
+		"salesforce_account":   accountType{},
 	}, nil
 }
 
