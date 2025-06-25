@@ -10,7 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
-func TestAccDataSourceProfile_basic(t *testing.T) {
+func TestAccDataSourceAccount_basic(t *testing.T) {
 	t.Parallel()
 
 	resource.Test(t, resource.TestCase{
@@ -18,19 +18,24 @@ func TestAccDataSourceProfile_basic(t *testing.T) {
 		ProtoV6ProviderFactories: providerFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccDataSourceProfile_basic("Chatter Free User"),
+				Config: testAccDataSourceAccount_basic("Test Account"),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttrSet("data.salesforce_profile.test", "id"),
+					resource.TestCheckResourceAttrSet("data.salesforce_account.test", "id"),
+					resource.TestCheckResourceAttr("data.salesforce_account.test", "name", "Test Account"),
 				),
 			},
 		},
 	})
 }
 
-func testAccDataSourceProfile_basic(name string) string {
+func testAccDataSourceAccount_basic(name string) string {
 	return fmt.Sprintf(`
-data "salesforce_profile" "test" {
+resource "salesforce_account" "test" {
   name = "%s"
 }
-`, name)
+
+data "salesforce_account" "test" {
+  name = salesforce_account.test.name
 }
+`, name)
+} 

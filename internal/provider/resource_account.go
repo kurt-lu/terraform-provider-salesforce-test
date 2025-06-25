@@ -6,221 +6,195 @@ package provider
 import (
 	"context"
 
-	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/nimajalali/go-force/force"
 )
-
-type accountType struct {
-}
-
-func (accountType) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfsdk.Schema{
-		Description: "Account Resource for the Salesforce Provider",
-		Attributes: map[string]tfsdk.Attribute{
-			"id": {
-				Description: "ID of the resource.",
-				Type:        types.StringType,
-				Computed:    true,
-				PlanModifiers: tfsdk.AttributePlanModifiers{
-					staticComputed{},
-				},
-			},
-			"name": {
-				Description: "The name of the account.",
-				Type:        types.StringType,
-				Required:    true,
-				Validators: []tfsdk.AttributeValidator{
-					notEmptyString{},
-				},
-			},
-			"account_number": {
-				Description: "Account number.",
-				Type:        types.StringType,
-				Optional:    true,
-			},
-			"type": {
-				Description: "Account type (e.g., Customer, Prospect, Partner).",
-				Type:        types.StringType,
-				Optional:    true,
-			},
-			"industry": {
-				Description: "Industry (e.g., Technology, Healthcare, Finance).",
-				Type:        types.StringType,
-				Optional:    true,
-			},
-			"phone": {
-				Description: "Phone number.",
-				Type:        types.StringType,
-				Optional:    true,
-			},
-			"website": {
-				Description: "Website URL.",
-				Type:        types.StringType,
-				Optional:    true,
-			},
-		},
-	}, nil
-}
-
-func (a accountType) NewResource(_ context.Context, prov tfsdk.Provider) (tfsdk.Resource, diag.Diagnostics) {
-	provider, ok := prov.(*provider)
-	if !ok {
-		return nil, diag.Diagnostics{errorConvertingProvider(a)}
-	}
-	return &accountResource{
-		client: provider.client,
-	}, nil
-}
 
 type accountResource struct {
 	client *force.ForceApi
 }
 
-type accountResourceData struct {
-	Name          string       `tfsdk:"name"`
-	AccountNumber *string      `tfsdk:"account_number"`
-	Type          *string      `tfsdk:"type"`
-	Industry      *string      `tfsdk:"industry"`
-	Phone         *string      `tfsdk:"phone"`
-	Website       *string      `tfsdk:"website"`
+var _ resource.Resource = &accountResource{}
+
+func (r *accountResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = "salesforce_account"
+}
+
+func (r *accountResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		Description: "Account Resource for the Salesforce Provider",
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Description: "ID of the resource.",
+				Computed:    true,
+			},
+			"name": schema.StringAttribute{
+				Description: "The name of the account.",
+				Required:    true,
+			},
+			"account_number": schema.StringAttribute{
+				Description: "Account number.",
+				Optional:    true,
+			},
+			"type": schema.StringAttribute{
+				Description: "Account type (e.g., Customer, Prospect, Partner).",
+				Optional:    true,
+			},
+			"industry": schema.StringAttribute{
+				Description: "Industry (e.g., Technology, Healthcare, Finance).",
+				Optional:    true,
+			},
+			"phone": schema.StringAttribute{
+				Description: "Phone number.",
+				Optional:    true,
+			},
+			"website": schema.StringAttribute{
+				Description: "Website URL.",
+				Optional:    true,
+			},
+		},
+	}
+}
+
+type accountResourceModel struct {
 	Id            types.String `tfsdk:"id"`
+	Name          types.String `tfsdk:"name"`
+	AccountNumber types.String `tfsdk:"account_number"`
+	Type          types.String `tfsdk:"type"`
+	Industry      types.String `tfsdk:"industry"`
+	Phone         types.String `tfsdk:"phone"`
+	Website       types.String `tfsdk:"website"`
 }
 
-func (a accountResourceData) ToMap(exclude ...string) accountMap {
-	aMap := make(accountMap)
-	if a.Name != "" {
-		aMap["Name"] = a.Name
-	}
-	if a.AccountNumber != nil && *a.AccountNumber != "" {
-		aMap["AccountNumber"] = *a.AccountNumber
-	}
-	if a.Type != nil && *a.Type != "" {
-		aMap["Type"] = *a.Type
-	}
-	if a.Industry != nil && *a.Industry != "" {
-		aMap["Industry"] = *a.Industry
-	}
-	if a.Phone != nil && *a.Phone != "" {
-		aMap["Phone"] = *a.Phone
-	}
-	if a.Website != nil && *a.Website != "" {
-		aMap["Website"] = *a.Website
-	}
-	// exclude keys, useful for update
-	for _, k := range exclude {
-		delete(aMap, k)
-	}
-	return aMap
+// Custom Account struct that implements force.SObject
+type customAccount struct {
+	Name            string `json:"Name"`
+	AccountNumber   string `json:"AccountNumber,omitempty"`
+	Type            string `json:"Type,omitempty"`
+	Industry        string `json:"Industry,omitempty"`
+	Phone           string `json:"Phone,omitempty"`
+	Website         string `json:"Website,omitempty"`
 }
 
-type accountMap map[string]interface{}
-
-func (a accountMap) ToStateData() accountResourceData {
-	data := accountResourceData{
-		Name: a["Name"].(string),
-	}
-	if accountNumber, ok := a["AccountNumber"]; ok && accountNumber != nil {
-		accountNumberStr := accountNumber.(string)
-		data.AccountNumber = &accountNumberStr
-	}
-	if accountType, ok := a["Type"]; ok && accountType != nil {
-		accountTypeStr := accountType.(string)
-		data.Type = &accountTypeStr
-	}
-	if industry, ok := a["Industry"]; ok && industry != nil {
-		industryStr := industry.(string)
-		data.Industry = &industryStr
-	}
-	if phone, ok := a["Phone"]; ok && phone != nil {
-		phoneStr := phone.(string)
-		data.Phone = &phoneStr
-	}
-	if website, ok := a["Website"]; ok && website != nil {
-		websiteStr := website.(string)
-		data.Website = &websiteStr
-	}
-	return data
-}
-
-func (accountMap) ApiName() string {
+func (a customAccount) ApiName() string {
 	return "Account"
 }
 
-func (accountMap) ExternalIdApiName() string {
+func (a customAccount) ExternalIdApiName() string {
 	return ""
 }
 
-func (a *accountResource) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
-	var data accountResourceData
-	if diags := req.Plan.Get(ctx, &data); diags.HasError() {
-		resp.Diagnostics = diags
+func (r *accountResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var data accountResourceModel
+	diags := req.Plan.Get(ctx, &data)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	sfResp, err := a.client.InsertSObject(data.ToMap())
+	account := customAccount{
+		Name: data.Name.ValueString(),
+	}
+	if !data.AccountNumber.IsNull() {
+		account.AccountNumber = data.AccountNumber.ValueString()
+	}
+	if !data.Type.IsNull() {
+		account.Type = data.Type.ValueString()
+	}
+	if !data.Industry.IsNull() {
+		account.Industry = data.Industry.ValueString()
+	}
+	if !data.Phone.IsNull() {
+		account.Phone = data.Phone.ValueString()
+	}
+	if !data.Website.IsNull() {
+		account.Website = data.Website.ValueString()
+	}
+
+	sfResp, err := r.client.InsertSObject(account)
 	if err != nil {
 		resp.Diagnostics.AddError("Error Inserting Account", err.Error())
 		return
 	}
-	data.Id = types.String{Value: sfResp.Id}
+	data.Id = types.StringValue(sfResp.Id)
 
-	resp.Diagnostics = resp.State.Set(ctx, &data)
+	diags = resp.State.Set(ctx, &data)
+	resp.Diagnostics.Append(diags...)
 }
 
-func (a *accountResource) Read(ctx context.Context, req tfsdk.ReadResourceRequest, resp *tfsdk.ReadResourceResponse) {
-	var data accountResourceData
-	if diags := req.State.Get(ctx, &data); diags.HasError() {
-		resp.Diagnostics = diags
+func (r *accountResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var data accountResourceModel
+	diags := req.State.Get(ctx, &data)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	var aMap accountMap
-	if err := a.client.GetSObject(data.Id.Value, nil, &aMap); err != nil {
-		if isNotFoundError(err) {
-			resp.State.RemoveResource(ctx)
-		} else {
-			resp.Diagnostics.AddError("Error Getting Account", err.Error())
-		}
+	var account customAccount
+	if err := r.client.GetSObject(data.Id.ValueString(), nil, &account); err != nil {
+		resp.Diagnostics.AddError("Error Getting Account", err.Error())
 		return
 	}
 
-	d := aMap.ToStateData()
-	// copy the ID back over
-	d.Id = data.Id
+	data.Name = types.StringValue(account.Name)
+	data.AccountNumber = types.StringValue(account.AccountNumber)
+	data.Type = types.StringValue(account.Type)
+	data.Industry = types.StringValue(account.Industry)
+	data.Phone = types.StringValue(account.Phone)
+	data.Website = types.StringValue(account.Website)
 
-	resp.Diagnostics = resp.State.Set(ctx, &d)
+	diags = resp.State.Set(ctx, &data)
+	resp.Diagnostics.Append(diags...)
 }
 
-func (a *accountResource) Update(ctx context.Context, req tfsdk.UpdateResourceRequest, resp *tfsdk.UpdateResourceResponse) {
-	var data accountResourceData
-	if diags := req.Plan.Get(ctx, &data); diags.HasError() {
-		resp.Diagnostics = diags
+func (r *accountResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var data accountResourceModel
+	diags := req.Plan.Get(ctx, &data)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if err := a.client.UpdateSObject(data.Id.Value, data.ToMap()); err != nil {
+	account := customAccount{
+		Name: data.Name.ValueString(),
+	}
+	if !data.AccountNumber.IsNull() {
+		account.AccountNumber = data.AccountNumber.ValueString()
+	}
+	if !data.Type.IsNull() {
+		account.Type = data.Type.ValueString()
+	}
+	if !data.Industry.IsNull() {
+		account.Industry = data.Industry.ValueString()
+	}
+	if !data.Phone.IsNull() {
+		account.Phone = data.Phone.ValueString()
+	}
+	if !data.Website.IsNull() {
+		account.Website = data.Website.ValueString()
+	}
+
+	if err := r.client.UpdateSObject(data.Id.ValueString(), account); err != nil {
 		resp.Diagnostics.AddError("Error Updating Account", err.Error())
 		return
 	}
 
-	resp.Diagnostics = resp.State.Set(ctx, &data)
+	diags = resp.State.Set(ctx, &data)
+	resp.Diagnostics.Append(diags...)
 }
 
-func (a *accountResource) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
-	var data accountResourceData
-	if diags := req.State.Get(ctx, &data); diags.HasError() {
-		resp.Diagnostics = diags
+func (r *accountResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var data accountResourceModel
+	diags := req.State.Get(ctx, &data)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if err := a.client.DeleteSObject(data.Id.Value); err != nil {
+	if err := r.client.DeleteSObject(data.Id.ValueString(), nil); err != nil {
 		resp.Diagnostics.AddError("Error Deleting Account", err.Error())
 		return
 	}
-}
-
-func (a *accountResource) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
-	tfsdk.ResourceImportStatePassthroughID(ctx, tfsdk.NewAttributePath().WithAttributeName("id"), req, resp)
 } 

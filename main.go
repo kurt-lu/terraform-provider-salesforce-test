@@ -30,7 +30,10 @@ var (
 )
 
 func main() {
-	providerserver.Serve(context.Background(), provider.New, providerserver.ServeOpts{
+	err := providerserver.Serve(context.Background(), provider.New, providerserver.ServeOpts{
 		Address: "registry.terraform.io/hashicorp/salesforce",
 	})
+	if err != nil {
+		panic(err)
+	}
 }

@@ -7,7 +7,7 @@ import (
 	"context"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -35,73 +35,62 @@ func normalizeId(id string) string {
 	return id + addon
 }
 
-type NormalizeId struct {
-	emptyDescriptions
-}
+type NormalizeId struct{}
 
-func (NormalizeId) Modify(_ context.Context, req tfsdk.ModifyAttributePlanRequest, resp *tfsdk.ModifyAttributePlanResponse) {
-	if req.AttributeState == nil {
+func (NormalizeId) PlanModifyString(ctx context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+	if req.StateValue.IsNull() || req.StateValue.IsUnknown() {
 		return
 	}
-	plan := req.AttributePlan.(types.String)
-	state := req.AttributeState.(types.String)
-	if normalizeId(plan.Value) == normalizeId(state.Value) {
-		resp.AttributePlan = state
+	plan := req.PlanValue.ValueString()
+	state := req.StateValue.ValueString()
+	if normalizeId(plan) == normalizeId(state) {
+		resp.PlanValue = req.StateValue
 	} else {
-		resp.AttributePlan = plan
+		resp.PlanValue = req.PlanValue
 	}
 }
 
 type resourceDefaults struct {
 	defaults map[string]attr.Value
-	emptyDescriptions
 }
 
-func (r resourceDefaults) Modify(_ context.Context, req tfsdk.ModifyAttributePlanRequest, resp *tfsdk.ModifyAttributePlanResponse) {
-	resp.AttributePlan = req.AttributePlan
-	// TODO need to check if null, not supported generically for attr.Value
-	// for now all defaults happen to be string so this is fine for now
-	if req.AttributeConfig.(types.String).Null {
-		def, ok := r.defaults[req.AttributePath.String()]
+func (r resourceDefaults) PlanModifyString(ctx context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+	resp.PlanValue = req.PlanValue
+	if req.ConfigValue.IsNull() {
+		def, ok := r.defaults[req.Path.String()]
 		if ok {
-			resp.AttributePlan = def
+			resp.PlanValue = def.(types.String)
 		}
 	}
 }
 
-type staticComputed struct {
-	emptyDescriptions
-}
+type staticComputed struct{}
 
-func (staticComputed) Modify(_ context.Context, req tfsdk.ModifyAttributePlanRequest, resp *tfsdk.ModifyAttributePlanResponse) {
-	if req.AttributeState == nil {
+func (staticComputed) PlanModifyString(ctx context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+	if req.StateValue.IsNull() {
 		return
 	}
-	resp.AttributePlan = req.AttributeState
+	resp.PlanValue = req.StateValue
 }
 
-type fixNullToUnknown struct {
-	emptyDescriptions
-}
+type fixNullToUnknown struct{}
 
-func (fixNullToUnknown) Modify(_ context.Context, req tfsdk.ModifyAttributePlanRequest, resp *tfsdk.ModifyAttributePlanResponse) {
-	if req.AttributeState == nil {
+func (fixNullToUnknown) PlanModifyString(ctx context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+	if req.StateValue.IsNull() {
 		return
 	}
-	state := req.AttributeState.(types.String)
-	config := req.AttributeConfig.(types.String)
-	if config.Unknown && state.Null {
-		resp.AttributePlan = config
+	state := req.StateValue
+	config := req.ConfigValue
+	if config.IsUnknown() && state.IsNull() {
+		resp.PlanValue = config
 	}
 }
 
-type booleanNilIsFalse struct {
-	emptyDescriptions
-}
+type booleanNilIsFalse struct{}
 
-func (booleanNilIsFalse) Modify(_ context.Context, req tfsdk.ModifyAttributePlanRequest, resp *tfsdk.ModifyAttributePlanResponse) {
-	resp.AttributePlan = req.AttributePlan
-	if req.AttributeConfig.(types.Bool).Null {
-		resp.AttributePlan = types.Bool{Value: false}
+func (booleanNilIsFalse) PlanModifyBool(ctx context.Context, req planmodifier.BoolRequest, resp *planmodifier.BoolResponse) {
+	resp.PlanValue = req.PlanValue
+	if req.ConfigValue.IsNull() {
+		resp.PlanValue = types.BoolValue(false)
 	}
 }

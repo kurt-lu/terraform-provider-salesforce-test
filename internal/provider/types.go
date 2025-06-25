@@ -37,6 +37,10 @@ func (BoolMarshalerType) String() string {
 	return "BoolMarshalerType"
 }
 
+func (BoolMarshalerType) ValueType(context.Context) attr.Value {
+	return BoolMarshaler{}
+}
+
 func (b BoolMarshalerType) ApplyTerraform5AttributePathStep(step tftypes.AttributePathStep) (interface{}, error) {
 	return nil, fmt.Errorf("cannot apply AttributePathStep %T to %s", step, b.String())
 }
@@ -50,10 +54,10 @@ func (BoolMarshaler) Type(context.Context) attr.Type {
 }
 
 func (b BoolMarshaler) MarshalJSON() ([]byte, error) {
-	if b.Null || b.Unknown {
+	if b.IsNull() || b.IsUnknown() {
 		return json.Marshal((*bool)(nil))
 	}
-	return json.Marshal(b.Value)
+	return json.Marshal(b.ValueBool())
 }
 
 func (b *BoolMarshaler) UnmarshalJSON(data []byte) error {
@@ -61,13 +65,10 @@ func (b *BoolMarshaler) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &bPtr); err != nil {
 		return err
 	}
-	b.Unknown = false
 	if bPtr == nil {
-		b.Value = false
-		b.Null = true
+		*b = BoolMarshaler{types.BoolNull()}
 	} else {
-		b.Value = *bPtr
-		b.Null = false
+		*b = BoolMarshaler{types.BoolValue(*bPtr)}
 	}
 	return nil
 }

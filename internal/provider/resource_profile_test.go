@@ -7,14 +7,13 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/acctest"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
 func TestAccResourceProfile_basic(t *testing.T) {
 	t.Parallel()
 
-	name := fmt.Sprintf("tf-test-%s", acctest.RandString(10))
+	name := fmt.Sprintf("tf-test-%s", RandString(10))
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
@@ -37,7 +36,7 @@ func TestAccResourceProfile_basic(t *testing.T) {
 func TestAccResourceProfile_update(t *testing.T) {
 	t.Parallel()
 
-	name := fmt.Sprintf("tf-test-%s", acctest.RandString(10))
+	name := fmt.Sprintf("tf-test-%s", RandString(10))
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
